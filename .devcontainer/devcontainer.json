@@ -1,0 +1,44 @@
+{
+  "name": "FIT File Mapper Development Environment",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "workspace",
+  "workspaceFolder": "/workspace",
+  "features": {
+    "ghcr.io/devcontainers/features/python:1": {
+      "version": "3.11",
+      "installTools": true
+    },
+    "ghcr.io/devcontainers/features/git:1": {},
+    "ghcr.io/devcontainers/features/github-cli:1": {}
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        "python.defaultInterpreterPath": "/usr/local/bin/python",
+        "python.linting.enabled": true,
+        "python.linting.pylintEnabled": false,
+        "python.linting.flake8Enabled": true,
+        "python.formatting.provider": "black",
+        "files.associations": {
+          "*.fit": "binary"
+        }
+      },
+      "extensions": [
+        "ms-python.python",
+        "ms-python.flake8",
+        "ms-python.black-formatter",
+        "ms-python.mypy-type-checker",
+        "ms-vscode.makefile-tools",
+        "redhat.vscode-yaml",
+        "ms-vscode.vscode-json"
+      ]
+    }
+  },
+  "forwardPorts": [
+    8000,
+    8080,
+    5432
+  ],
+  "postCreateCommand": "uv venv && source .venv/bin/activate && uv pip install -e '.[dev,all]'",
+  "remoteUser": "vscode"
+}

@@ -1,0 +1,91 @@
+version: '3.8'
+
+services:
+  workspace:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    volumes:
+      - ../..:/workspaces:cached
+      - fit-data:/workspace/data
+      - duckdb-data:/workspace/database
+    command: sleep infinity
+    environment:
+      - PYTHONPATH=/workspace
+      - DUCKDB_PATH=/workspace/database/workouts.duckdb
+    networks:
+      - fit-mapper-network
+
+  fit-parser-service:
+    build:
+      context: ../services/fit-parser
+      dockerfile: Dockerfile
+    volumes:
+      - ../data/fit_files:/app/data/fit_files:ro
+      - duckdb-data:/app/database
+    environment:
+      - DUCKDB_PATH=/app/database/workouts.duckdb
+      - SERVICE_NAME=fit-parser
+    networks:
+      - fit-mapper-network
+    ports:
+      - "8001:8000"
+
+  map-service:
+    build:
+      context: ../services/map-service
+      dockerfile: Dockerfile
+    volumes:
+      - ../data/maps:/app/data/maps
+      - duckdb-data:/app/database
+    environment:
+      - DUCKDB_PATH=/app/database/workouts.duckdb
+      - SERVICE_NAME=map-service
+    networks:
+      - fit-mapper-network
+    ports:
+      - "8002:8000"
+
+  visualization-service:
+    build:
+      context: ../services/visualization
+      dockerfile: Dockerfile
+    volumes:
+      - ../output:/app/output
+      - ../data/maps:/app/data/maps:ro
+      - duckdb-data:/app/database
+    environment:
+      - DUCKDB_PATH=/app/database/workouts.duckdb
+      - SERVICE_NAME=visualization
+    networks:
+      - fit-mapper-network
+    ports:
+      - "8003:8000"
+
+  api-gateway:
+    build:
+      context: ../services/api-gateway
+      dockerfile: Dockerfile
+    volumes:
+      - duckdb-data:/app/database
+    environment:
+      - DUCKDB_PATH=/app/database/workouts.duckdb
+      - FIT_PARSER_URL=http://fit-parser-service:8000
+      - MAP_SERVICE_URL=http://map-service:8000
+      - VISUALIZATION_URL=http://visualization-service:8000
+    networks:
+      - fit-mapper-network
+    ports:
+      - "8000:8000"
+    depends_on:
+      - fit-parser-service
+      - map-service
+      - visualization-service
+
+volumes:
+  fit-data:
+  duckdb-data:
+
+networks:
+  fit-mapper-network:
+    driver: bridge
