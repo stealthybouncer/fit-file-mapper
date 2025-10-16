@@ -50,7 +50,9 @@ COPY services/map-service /app
 RUN useradd --create-home --shell /bin/bash app && \
     chown -R app:app /app && \
     mkdir -p /app/data/maps && \
-    chown -R app:app /app/data
+    mkdir -p /app/database && \
+    chown -R app:app /app/data && \
+    chown -R app:app /app/database
 USER app
 
 EXPOSE 8000

@@ -50,7 +50,7 @@ class APIGateway:
     """
     
     def __init__(self):
-        self.db = get_database()
+        self._db = None  # Lazy database connection
         
         # Service URLs
         self.services = {
@@ -58,6 +58,13 @@ class APIGateway:
             'map_service': os.getenv('MAP_SERVICE_URL', 'http://map-service:8000'),
             'visualization': os.getenv('VISUALIZATION_URL', 'http://visualization-service:8000')
         }
+    
+    @property
+    def db(self):
+        """Lazy database connection."""
+        if self._db is None:
+            self._db = get_database()
+        return self._db
     
     async def call_service(self, service: str, endpoint: str, 
                           method: str = 'GET', data: Optional[Dict] = None,

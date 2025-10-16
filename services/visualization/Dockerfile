@@ -57,7 +57,9 @@ COPY services/visualization /app
 RUN useradd --create-home --shell /bin/bash app && \
     chown -R app:app /app && \
     mkdir -p /app/output && \
-    chown -R app:app /app/output
+    mkdir -p /app/database && \
+    chown -R app:app /app/output && \
+    chown -R app:app /app/database
 USER app
 
 EXPOSE 8000

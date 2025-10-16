@@ -34,9 +34,18 @@ class VisualizationService:
     """
     
     def __init__(self):
-        self.db = get_database()
-        self.output_dir = Path("/app/output")
-        self.output_dir.mkdir(exist_ok=True)
+        self._db = None  # Lazy database connection
+        
+        # Visualization output configuration
+        self.output_dir = Path("output")
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+    
+    @property
+    def db(self):
+        """Lazy database connection."""
+        if self._db is None:
+            self._db = get_database()
+        return self._db
     
     def create_single_route_visualization(self, workout_id: str, options: Dict) -> str:
         """

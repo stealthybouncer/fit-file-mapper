@@ -48,7 +48,9 @@ COPY services/api-gateway /app
 
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash app && \
-    chown -R app:app /app
+    chown -R app:app /app && \
+    mkdir -p /app/database && \
+    chown -R app:app /app/database
 USER app
 
 EXPOSE 8000

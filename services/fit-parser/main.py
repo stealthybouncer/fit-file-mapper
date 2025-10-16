@@ -38,7 +38,14 @@ class FITParserService:
     """
     
     def __init__(self):
-        self.db = get_database()
+        self._db = None  # Lazy database connection
+    
+    @property
+    def db(self):
+        """Lazy database connection."""
+        if self._db is None:
+            self._db = get_database()
+        return self._db
         self.supported_activity_types = [
             'running', 'hiking', 'cycling', 'kayaking', 
             'swimming', 'walking', 'generic'

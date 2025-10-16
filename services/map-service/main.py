@@ -42,26 +42,23 @@ class MapService:
     """
     
     def __init__(self):
-        self.db = get_database()
+        self._db = None  # Lazy database connection
         
-        # USGS tile server URLs
-        self.tile_urls = {
-            'satellite': 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryOnly/MapServer/tile',
-            'topo': 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSTopo/MapServer/tile',
-            'hybrid': 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSImageryTopo/MapServer/tile'
-        }
+        # Map data storage configuration
+        self.map_cache_dir = Path("data/maps")
+        self.map_cache_dir.mkdir(parents=True, exist_ok=True)
         
-        # NYC area bounds for optimization
-        self.nyc_bounds = {
-            'lat_min': 40.4774,
-            'lat_max': 40.9176,
-            'lon_min': -74.2591,
-            'lon_max': -73.7004
-        }
-        
-        # Rate limiting
-        self.max_concurrent_downloads = 8
-        self.semaphore = asyncio.Semaphore(self.max_concurrent_downloads)
+        # USGS API configuration
+        self.usgs_base_url = "https://basemap.nationalmap.gov/arcgis/rest/services"
+        self.max_zoom = 18
+        self.tile_size = 256
+    
+    @property
+    def db(self):
+        """Lazy database connection."""
+        if self._db is None:
+            self._db = get_database()
+        return self._db
     
     def lat_lon_to_tile(self, lat: float, lon: float, zoom: int) -> Tuple[int, int]:
         """

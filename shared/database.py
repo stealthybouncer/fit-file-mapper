@@ -31,13 +31,31 @@ class WorkoutDatabase:
     
     def __init__(self, db_path: Optional[str] = None):
         """Initialize DuckDB connection and create tables."""
-        self.db_path = db_path or os.getenv('DUCKDB_PATH', 'database/workouts.duckdb')
+        # Use service-specific database path to avoid conflicts
+        service_name = os.getenv('SERVICE_NAME', 'main')
+        base_path = db_path or os.getenv('DUCKDB_PATH', 'database/workouts.duckdb')
+        
+        if service_name != 'main':
+            # Create service-specific database file
+            db_dir = Path(base_path).parent
+            db_name = Path(base_path).stem
+            db_ext = Path(base_path).suffix
+            self.db_path = str(db_dir / f"{db_name}_{service_name}{db_ext}")
+        else:
+            self.db_path = base_path
         
         # Ensure database directory exists
         Path(self.db_path).parent.mkdir(parents=True, exist_ok=True)
         
         # Connect to DuckDB
-        self.conn = duckdb.connect(self.db_path)
+        try:
+            self.conn = duckdb.connect(self.db_path)
+            logger.info(f"Connected to database: {self.db_path}")
+        except Exception as e:
+            logger.error(f"Failed to connect to database {self.db_path}: {e}")
+            # Fallback to in-memory database
+            self.conn = duckdb.connect(":memory:")
+            logger.warning("Using in-memory database as fallback")
         
         # Install and load spatial extension for geographic operations
         self._setup_extensions()
@@ -389,5 +407,10 @@ def get_database() -> WorkoutDatabase:
     """Get shared database instance."""
     global _db_instance
     if _db_instance is None:
-        _db_instance = WorkoutDatabase()
+        try:
+            _db_instance = WorkoutDatabase()
+        except Exception as e:
+            logger.error(f"Failed to create database instance: {e}")
+            # Return a temporary in-memory database for testing
+            _db_instance = WorkoutDatabase(":memory:")
     return _db_instance
