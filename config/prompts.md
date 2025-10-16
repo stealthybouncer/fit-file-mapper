@@ -30,4 +30,6 @@ Additional Requirements:
 - **Package Manager**: Use Astral UV for fast Python package management
 - **Dependency Management**: Use pyproject.toml for modern Python project configuration
 
+## prompt 5
+optimize the container to use a build and prod baseimage
 

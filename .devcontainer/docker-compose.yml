@@ -3,8 +3,8 @@ version: '3.8'
 services:
   workspace:
     build:
-      context: .
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: .devcontainer/Dockerfile
     volumes:
       - ../..:/workspaces:cached
       - fit-data:/workspace/data
@@ -18,8 +18,8 @@ services:
 
   fit-parser-service:
     build:
-      context: ../services/fit-parser
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: services/fit-parser/Dockerfile
     volumes:
       - ../data/fit_files:/app/data/fit_files:ro
       - duckdb-data:/app/database
@@ -33,8 +33,8 @@ services:
 
   map-service:
     build:
-      context: ../services/map-service
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: services/map-service/Dockerfile
     volumes:
       - ../data/maps:/app/data/maps
       - duckdb-data:/app/database
@@ -48,8 +48,8 @@ services:
 
   visualization-service:
     build:
-      context: ../services/visualization
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: services/visualization/Dockerfile
     volumes:
       - ../output:/app/output
       - ../data/maps:/app/data/maps:ro
@@ -64,8 +64,8 @@ services:
 
   api-gateway:
     build:
-      context: ../services/api-gateway
-      dockerfile: Dockerfile
+      context: ..
+      dockerfile: services/api-gateway/Dockerfile
     volumes:
       - duckdb-data:/app/database
     environment:

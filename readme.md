@@ -77,7 +77,7 @@ This project aims to:
 ## Technical Stack
 
 ### Programming Language
-- **Python 3.9+** (preferred for geospatial libraries)
+- **Python 3.12+** (preferred for geospatial libraries)
 
 ### Key Libraries (To Be Confirmed)
 - **fitparse**: FIT file parsing

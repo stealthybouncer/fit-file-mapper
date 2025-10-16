@@ -15,12 +15,13 @@ RUN pip install --no-cache-dir uv
 WORKDIR /build
 
 # Copy project configuration
-COPY ../../pyproject.toml ./
-COPY requirements.txt ./
+COPY pyproject.toml ./
+COPY services/api-gateway/requirements.txt ./
 
 # Create virtual environment and install dependencies
 RUN uv venv /opt/venv && \
-    /opt/venv/bin/uv pip install -r requirements.txt
+    . /opt/venv/bin/activate && \
+    uv pip install -r requirements.txt
 
 # Production stage
 FROM python:3.11-slim as production
@@ -40,10 +41,10 @@ ENV PYTHONPATH="/app"
 WORKDIR /app
 
 # Copy shared modules
-COPY ../../shared /app/shared
+COPY shared /app/shared
 
 # Copy service code
-COPY . /app
+COPY services/api-gateway /app
 
 # Create non-root user for security
 RUN useradd --create-home --shell /bin/bash app && \

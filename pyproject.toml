@@ -6,11 +6,11 @@ build-backend = "hatchling.build"
 name = "fit-file-mapper"
 version = "0.1.0"
 description = "A Python application for mapping FIT file GPS data on USGS maps with advanced visualization capabilities"
-readme = "README.md"
+readme = "readme.md"
 requires-python = ">=3.11"
 license = {text = "MIT"}
 authors = [
-    {name = "Your Name", email = "your.email@example.com"},
+    {name = "Francis Rodrigues", email = "nocontact@example.com"},
 ]
 keywords = [
     "fit-files",

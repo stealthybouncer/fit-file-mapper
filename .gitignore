@@ -74,6 +74,7 @@ dmypy.json
 .env.production.local
 
 # FIT File Mapper specific
+data/
 data/fit_files/*.fit
 data/maps/cache/
 database/*.duckdb
