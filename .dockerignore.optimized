@@ -1,0 +1,52 @@
+# Optimize build context - exclude unnecessary files
+**/.git
+**/.gitignore
+**/README.md
+**/readme.md
+**/*.md
+**/docs
+**/output
+**/__pycache__
+**/*.pyc
+**/*.pyo
+**/*.pyd
+**/.Python
+**/env
+**/venv
+**/.venv
+**/pip-log.txt
+**/pip-delete-this-directory.txt
+**/.tox
+**/.coverage
+**/.coverage.*
+**/.cache
+**/nosetests.xml
+**/coverage.xml
+**/*.cover
+**/*.log
+**/.git
+**/.mypy_cache
+**/.pytest_cache
+**/.hypothesis
+
+# Large data files
+**/data/fit_files/*.fit
+**/data/maps/*
+**/Downloads/*
+**/database/*.duckdb
+
+# IDE files
+**/.vscode
+**/.idea
+**/*.swp
+**/*.swo
+**/tags
+
+# OS files
+**/.DS_Store
+**/Thumbs.db
+
+# Build artifacts
+**/build
+**/dist
+**/*.egg-info

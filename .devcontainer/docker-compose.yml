@@ -22,6 +22,7 @@ services:
       dockerfile: services/fit-parser/Dockerfile
     volumes:
       - ../data/fit_files:/app/data/fit_files:ro
+      - "/Users/fr/Downloads/garmin-2025-08-02:/app/data/downloads:ro"
       - duckdb-data:/app/database
     environment:
       - DUCKDB_PATH=/app/database/workouts.duckdb
