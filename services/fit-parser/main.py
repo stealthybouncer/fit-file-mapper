@@ -132,13 +132,14 @@ class FITParserService:
             logger.error(f"Error processing FIT file {file_path}: {e}")
             raise ValueError(f"Failed to process FIT file {file_path.name}: {str(e)}")
     
-    async def batch_process_folder(self, folder_path: str, job_id: str):
+    async def batch_process_folder(self, folder_path: str, job_id: str, max_files: int = 5000):
         """
         Background task to process all FIT files in a folder.
         
         Args:
             folder_path: Path to folder containing FIT files
             job_id: Unique identifier for this batch job
+            max_files: Maximum number of files to process (default: 5000)
         """
         try:
             # Initialize job status
@@ -169,8 +170,16 @@ class FITParserService:
             
             # Remove duplicates
             fit_files = list(set(fit_files))
+            total_files_found = len(fit_files)
+            
+            # Limit number of files to process
+            if len(fit_files) > max_files:
+                logger.info(f"Limiting processing to {max_files} files out of {total_files_found} found")
+                fit_files = fit_files[:max_files]
             
             self.batch_jobs[job_id]['total_files'] = len(fit_files)
+            self.batch_jobs[job_id]['max_files'] = max_files
+            self.batch_jobs[job_id]['total_files_found'] = total_files_found
             
             if len(fit_files) == 0:
                 self.batch_jobs[job_id]['status'] = 'completed'
@@ -293,6 +302,44 @@ class FITParserService:
         except Exception as e:
             logger.error(f"Error getting comprehensive statistics: {e}")
             raise HTTPException(status_code=500, detail=f"Failed to get statistics: {str(e)}")
+    
+    def execute_sql_query(self, sql: str) -> Dict[str, Any]:
+        """
+        Execute a custom SQL query on the DuckDB database.
+        
+        Args:
+            sql: SQL query string
+            
+        Returns:
+            Dict with query results
+        """
+        try:
+            conn = self.db.get_connection()
+            
+            # Safety check for read-only operations
+            sql_upper = sql.upper().strip()
+            if any(keyword in sql_upper for keyword in ['DROP', 'DELETE', 'TRUNCATE', 'ALTER', 'CREATE', 'INSERT', 'UPDATE']):
+                raise HTTPException(status_code=400, detail="Only SELECT queries are allowed")
+            
+            logger.info(f"Executing SQL query: {sql[:100]}...")
+            result = conn.execute(sql)
+            
+            # Fetch results and column names
+            rows = result.fetchall()
+            columns = [desc[0] for desc in result.description] if result.description else []
+            
+            return {
+                "status": "success",
+                "sql_query": sql,
+                "columns": columns,
+                "row_count": len(rows),
+                "data": rows,
+                "message": f"Query executed successfully. Returned {len(rows)} rows."
+            }
+            
+        except Exception as e:
+            logger.error(f"Error executing SQL query: {e}")
+            raise HTTPException(status_code=500, detail=f"SQL query failed: {str(e)}")
     
     def store_workout_data(self, parsed_data: Dict[str, Any]) -> str:
         """
@@ -565,7 +612,8 @@ async def get_parser_stats():
 @app.post("/parse/batch", summary="Process all FIT files in a folder")
 async def batch_parse_fit_files(
     folder_path: str,
-    background_tasks: BackgroundTasks
+    background_tasks: BackgroundTasks,
+    max_files: int = Query(5000, description="Maximum number of files to process (default: 5000)")
 ) -> Dict[str, Any]:
     """
     Start batch processing of all FIT files in a specified folder.
@@ -573,6 +621,7 @@ async def batch_parse_fit_files(
     Args:
         folder_path: Path to folder containing FIT files
         background_tasks: FastAPI background tasks manager
+        max_files: Maximum number of files to process (default: 5000)
     
     Returns:
         Job information including job_id for tracking progress
@@ -598,14 +647,16 @@ async def batch_parse_fit_files(
     background_tasks.add_task(
         fit_parser_service.batch_process_folder,
         folder_path,
-        job_id
+        job_id,
+        max_files
     )
     
     return {
         "job_id": job_id,
         "status": "started",
-        "message": f"Batch processing started for folder: {folder_path}",
+        "message": f"Batch processing started for folder: {folder_path} (max {max_files} files)",
         "folder_path": folder_path,
+        "max_files": max_files,
         "check_status_url": f"/parse/batch/{job_id}/status"
     }
 
@@ -681,6 +732,87 @@ async def get_batch_job_results(job_id: str) -> Dict[str, Any]:
             status_code=500,
             detail=f"Failed to get job results: {str(e)}"
         )
+
+
+@app.post("/query", summary="Execute SQL query on the workout database")
+async def execute_sql_query(request: Dict[str, str]) -> Dict[str, Any]:
+    """
+    Execute a custom SQL query on the DuckDB workout database.
+    
+    Args:
+        request: Dictionary containing 'sql' key with the query string
+    
+    Returns:
+        Query results with columns and data
+    
+    Example:
+        POST /query
+        {"sql": "SELECT COUNT(*) FROM workouts"}
+    """
+    try:
+        sql = request.get('sql', '').strip()
+        if not sql:
+            raise HTTPException(status_code=400, detail="SQL query is required")
+        
+        logger.info(f"Executing SQL query: {sql[:100]}...")
+        result = fit_parser_service.execute_sql_query(sql)
+        return result
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in SQL query endpoint: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Query execution failed: {str(e)}"
+        )
+
+
+@app.get("/query/examples", summary="Get example SQL queries")
+async def get_query_examples() -> Dict[str, Any]:
+    """
+    Get example SQL queries for exploring the workout database.
+    
+    Returns:
+        List of example queries with descriptions
+    """
+    examples = {
+        "basic_queries": [
+            {
+                "description": "Count total workouts",
+                "sql": "SELECT COUNT(*) as total_workouts FROM workouts"
+            },
+            {
+                "description": "Show all tables",
+                "sql": "SHOW TABLES"
+            },
+            {
+                "description": "Workout summary by activity type",
+                "sql": "SELECT activity_type, COUNT(*) as count, SUM(total_distance_km) as total_distance FROM workouts GROUP BY activity_type ORDER BY count DESC"
+            },
+            {
+                "description": "Recent workouts",
+                "sql": "SELECT file_name, activity_type, start_time, total_distance_km, duration_seconds FROM workouts ORDER BY start_time DESC LIMIT 10"
+            }
+        ],
+        "advanced_queries": [
+            {
+                "description": "GPS points for a specific workout",
+                "sql": "SELECT latitude, longitude, altitude, timestamp FROM gps_points WHERE workout_id = 'YOUR_WORKOUT_ID' LIMIT 100"
+            },
+            {
+                "description": "Workouts by month",
+                "sql": "SELECT strftime(start_time, '%Y-%m') as month, COUNT(*) as workouts, SUM(total_distance_km) as total_distance FROM workouts WHERE start_time IS NOT NULL GROUP BY month ORDER BY month"
+            },
+            {
+                "description": "Longest workouts by distance",
+                "sql": "SELECT file_name, activity_type, total_distance_km, duration_seconds FROM workouts WHERE total_distance_km > 0 ORDER BY total_distance_km DESC LIMIT 10"
+            }
+        ],
+        "usage": "POST /query with JSON body: {\"sql\": \"YOUR_QUERY_HERE\"}"
+    }
+    
+    return examples
 
 
 @app.delete("/parse/batch/{job_id}", summary="Cancel or delete a batch processing job")
