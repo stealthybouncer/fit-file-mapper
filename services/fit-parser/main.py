@@ -314,7 +314,8 @@ class FITParserService:
             Dict with query results
         """
         try:
-            conn = self.db.get_connection()
+            # Use the database connection directly
+            conn = self.db.conn
             
             # Safety check for read-only operations
             sql_upper = sql.upper().strip()
