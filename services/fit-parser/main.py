@@ -45,19 +45,10 @@ class FITParserService:
     """
     
     def __init__(self):
-        self._db = None  # Lazy database connection
+        self.db = get_database()
         self.upload_dir = Path("/tmp/fit_uploads")
         self.upload_dir.mkdir(exist_ok=True)
-        
-        # Batch processing status tracking
-        self.batch_jobs = {}  # job_id -> status info
-    
-    @property
-    def db(self):
-        """Lazy database connection."""
-        if self._db is None:
-            self._db = get_database()
-        return self._db
+        self.batch_jobs = {}
     
     async def process_fit_file(self, file: UploadFile) -> Dict[str, Any]:
         """
@@ -304,31 +295,25 @@ class FITParserService:
             raise HTTPException(status_code=500, detail=f"Failed to get statistics: {str(e)}")
     
     def execute_sql_query(self, sql: str) -> Dict[str, Any]:
-        """
-        Execute a custom SQL query on the DuckDB database.
-        
-        Args:
-            sql: SQL query string
-            
-        Returns:
-            Dict with query results
-        """
         try:
-            # Use the database connection directly
             conn = self.db.conn
-            
-            # Safety check for read-only operations
-            sql_upper = sql.upper().strip()
-            if any(keyword in sql_upper for keyword in ['DROP', 'DELETE', 'TRUNCATE', 'ALTER', 'CREATE', 'INSERT', 'UPDATE']):
-                raise HTTPException(status_code=400, detail="Only SELECT queries are allowed")
-            
+
+            sql_normalized = ' '.join(sql.upper().split())
+            unsafe_keywords = ['DROP', 'DELETE', 'TRUNCATE', 'ALTER', 'CREATE', 'INSERT', 'UPDATE']
+
+            for keyword in unsafe_keywords:
+                if keyword in sql_normalized:
+                    raise HTTPException(status_code=400, detail="Only SELECT queries are allowed")
+
+            if not sql_normalized.startswith('SELECT') and not sql_normalized.startswith('SHOW'):
+                raise HTTPException(status_code=400, detail="Only SELECT and SHOW queries are allowed")
+
             logger.info(f"Executing SQL query: {sql[:100]}...")
             result = conn.execute(sql)
-            
-            # Fetch results and column names
+
             rows = result.fetchall()
             columns = [desc[0] for desc in result.description] if result.description else []
-            
+
             return {
                 "status": "success",
                 "sql_query": sql,
@@ -337,7 +322,9 @@ class FITParserService:
                 "data": rows,
                 "message": f"Query executed successfully. Returned {len(rows)} rows."
             }
-            
+
+        except HTTPException:
+            raise
         except Exception as e:
             logger.error(f"Error executing SQL query: {e}")
             raise HTTPException(status_code=500, detail=f"SQL query failed: {str(e)}")
@@ -412,49 +399,34 @@ fit_parser_service = FITParserService()
 
 
 @app.post("/parse", summary="Parse FIT File", tags=["FIT Parsing"])
-async def parse_fit_file(
-    file: UploadFile = File(..., description="FIT file to parse"),
-    store_in_db: bool = Query(True, description="Whether to store results in database")
-):
-    """
-    Parse a FIT file and extract comprehensive workout data.
-    
-    - **file**: FIT file from GPS device (Garmin, Polar, etc.)
-    - **store_in_db**: Whether to automatically store results in database
-    
-    Returns detailed workout metadata, GPS points, and device information.
-    """
+async def parse_fit_file(file: UploadFile = File(..., description="FIT file to parse")):
     try:
-        # Process the FIT file
         parsed_data = await fit_parser_service.process_fit_file(file)
-        
-        # Get workout summary for response
-        workout_summary = FitFileParser().get_workout_summary() if hasattr(FitFileParser(), 'workout_data') else {}
-        
+
         return {
             "status": "success",
             "message": f"Successfully parsed {file.filename}",
             "workout_id": parsed_data.get('workout_id'),
-            "file_info": {
-                "name": file.filename,
-                "size_bytes": len(await file.read()) if hasattr(file, 'read') else None,
-                "parsed_at": parsed_data.get('parsed_at')
-            },
             "workout_summary": {
                 "activity_type": parsed_data['workout_metadata'].get('activity_type', 'unknown'),
                 "duration_minutes": round(parsed_data['workout_metadata'].get('duration_seconds', 0) / 60, 1),
                 "distance_km": round(parsed_data['workout_metadata'].get('total_distance_km', 0), 2),
                 "gps_points": len(parsed_data.get('gps_points', [])),
                 "device": f"{parsed_data['device_info'].get('manufacturer', 'Unknown')} {parsed_data['device_info'].get('product', '')}"
-            },
-            "data": parsed_data if not store_in_db else {"workout_id": parsed_data.get('workout_id')}
+            }
         }
-        
+
     except HTTPException:
         raise
+    except ValueError as e:
+        logger.error(f"Invalid FIT file {file.filename}: {e}")
+        raise HTTPException(status_code=400, detail=f"Invalid FIT file: {str(e)}")
+    except IOError as e:
+        logger.error(f"File processing error for {file.filename}: {e}")
+        raise HTTPException(status_code=500, detail=f"File processing error: {str(e)}")
     except Exception as e:
-        logger.error(f"Unexpected error parsing FIT file: {e}")
-        raise HTTPException(status_code=500, detail="Internal server error during FIT file parsing")
+        logger.error(f"Unexpected error parsing FIT file {file.filename}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
 
 
 @app.get("/workout/{workout_id}", summary="Get Workout", tags=["Workout Data"])
@@ -554,25 +526,28 @@ async def get_workout_gps(
 @app.get("/workouts", summary="List Workouts", tags=["Workout Data"])
 async def list_workouts(
     activity_type: Optional[str] = Query(None, description="Filter by activity type"),
-    limit: int = Query(50, description="Maximum number of workouts to return"),
-    offset: int = Query(0, description="Number of workouts to skip")
+    limit: int = Query(50, description="Maximum number of workouts to return")
 ):
-    """
-    List workouts with optional filtering.
-    
-    Returns a list of workouts with basic metadata for browsing and selection.
-    """
     try:
-        # This would require implementing a list_workouts method in the database
-        # For now, return a simple response
+        query = "SELECT * FROM workouts"
+        params = []
+
+        if activity_type:
+            query += " WHERE activity_type = ?"
+            params.append(activity_type)
+
+        query += " ORDER BY start_time DESC LIMIT ?"
+        params.append(limit)
+
+        result = fit_parser_service.db.conn.execute(query, params).fetchall()
+        columns = [desc[0] for desc in fit_parser_service.db.conn.description]
+
+        workouts = [dict(zip(columns, row)) for row in result]
+
         return {
             "status": "success",
-            "message": "Workout listing endpoint - implementation pending",
-            "filters": {
-                "activity_type": activity_type,
-                "limit": limit,
-                "offset": offset
-            }
+            "count": len(workouts),
+            "workouts": workouts
         }
     except Exception as e:
         logger.error(f"Error listing workouts: {e}")

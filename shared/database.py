@@ -64,7 +64,6 @@ class WorkoutDatabase:
         self._create_tables()
         
     def _setup_extensions(self):
-        """Install and load required DuckDB extensions."""
         try:
             # Install spatial extension for geographic functions
             self.conn.execute("INSTALL spatial;")
@@ -221,7 +220,6 @@ class WorkoutDatabase:
             workout_id: ID of the parent workout
             gps_data: DataFrame with GPS coordinates and metrics
         """
-        # Prepare GPS points data
         gps_points = []
         for idx, row in gps_data.iterrows():
             point_id = f"{workout_id}_point_{idx:06d}"
@@ -231,13 +229,13 @@ class WorkoutDatabase:
                 'timestamp': row.get('timestamp'),
                 'latitude': row.get('latitude'),
                 'longitude': row.get('longitude'),
-                'elevation_m': row.get('elevation'),
-                'speed_kmh': row.get('speed'),
+                'elevation_m': row.get('elevation_m'),
+                'speed_kmh': row.get('speed_kmh'),
                 'heart_rate': row.get('heart_rate'),
                 'cadence': row.get('cadence'),
-                'power_watts': row.get('power'),
-                'temperature_c': row.get('temperature'),
-                'distance_km': row.get('distance'),
+                'power_watts': row.get('power_watts'),
+                'temperature_c': row.get('temperature_c'),
+                'distance_km': row.get('distance_km'),
                 'point_sequence': idx
             })
         
@@ -386,17 +384,14 @@ class WorkoutDatabase:
         logger.info(f"Cleaned up {deleted_count} old map tiles")
     
     def close(self):
-        """Close database connection."""
         if self.conn:
             self.conn.close()
             logger.info("Database connection closed")
     
     def __enter__(self):
-        """Context manager entry."""
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
-        """Context manager exit."""
         self.close()
 
 

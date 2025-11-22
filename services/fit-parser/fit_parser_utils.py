@@ -77,11 +77,22 @@ class FitFileParser:
     }
     
     def __init__(self):
-        """Initialize the FIT parser."""
         self.fitfile = None
         self.workout_data = {}
         self.gps_points = []
         self.device_info = {}
+
+    def semicircles_to_degrees(self, semicircles: float) -> float:
+        return semicircles * (180.0 / 2**31)
+
+    def fit_altitude_to_meters(self, fit_value: float) -> float:
+        return fit_value / 5.0 - 500.0
+
+    def meters_per_second_to_kmh(self, mps: float) -> float:
+        return mps * 3.6
+
+    def fit_distance_to_km(self, fit_value: float) -> float:
+        return fit_value / 100000.0
         
     def parse_fit_file(self, file_path: str) -> Dict[str, Any]:
         """
@@ -134,7 +145,6 @@ class FitFileParser:
             raise ValueError(f"Invalid FIT file format: {e}")
     
     def _parse_file_id(self):
-        """Parse file ID information."""
         for record in self.fitfile.get_messages('file_id'):
             for field in record:
                 if field.name == 'type':
@@ -150,7 +160,6 @@ class FitFileParser:
                         self.workout_data['file_created'] = self._convert_timestamp(field.value)
     
     def _parse_session_data(self):
-        """Parse session-level workout data."""
         for record in self.fitfile.get_messages('session'):
             for field in record:
                 field_name = field.name
@@ -174,7 +183,7 @@ class FitFileParser:
                         self.workout_data['moving_time_seconds'] = int(field_value)
                 elif field_name == 'total_distance':
                     if field_value:
-                        self.workout_data['total_distance_km'] = field_value / 100000  # Convert to km
+                        self.workout_data['total_distance_km'] = self.fit_distance_to_km(field_value)
                 elif field_name == 'total_ascent':
                     if field_value:
                         self.workout_data['total_elevation_gain_m'] = field_value
@@ -183,10 +192,10 @@ class FitFileParser:
                         self.workout_data['total_elevation_loss_m'] = field_value
                 elif field_name == 'avg_speed':
                     if field_value:
-                        self.workout_data['avg_speed_kmh'] = field_value * 3.6  # Convert m/s to km/h
+                        self.workout_data['avg_speed_kmh'] = self.meters_per_second_to_kmh(field_value)
                 elif field_name == 'max_speed':
                     if field_value:
-                        self.workout_data['max_speed_kmh'] = field_value * 3.6  # Convert m/s to km/h
+                        self.workout_data['max_speed_kmh'] = self.meters_per_second_to_kmh(field_value)
                 elif field_name == 'avg_heart_rate':
                     if field_value:
                         self.workout_data['avg_heart_rate'] = field_value
@@ -210,7 +219,6 @@ class FitFileParser:
                         self.workout_data['max_power_watts'] = field_value
     
     def _parse_device_info(self):
-        """Parse device information."""
         for record in self.fitfile.get_messages('device_info'):
             for field in record:
                 if field.name == 'device_index' and field.value == 0:  # Primary device
@@ -229,7 +237,6 @@ class FitFileParser:
                     self.device_info['device_type'] = field.value
     
     def _parse_gps_records(self):
-        """Parse GPS record data points."""
         gps_data = []
         distance = 0.0
         
@@ -249,24 +256,22 @@ class FitFileParser:
                         point['timestamp'] = self._convert_timestamp(field_value)
                 elif field_name == 'position_lat':
                     if field_value is not None:
-                        # Convert semicircles to degrees
-                        point['latitude'] = field_value * (180.0 / 2**31)
+                        point['latitude'] = self.semicircles_to_degrees(field_value)
                 elif field_name == 'position_long':
                     if field_value is not None:
-                        # Convert semicircles to degrees
-                        point['longitude'] = field_value * (180.0 / 2**31)
+                        point['longitude'] = self.semicircles_to_degrees(field_value)
                 elif field_name == 'altitude':
                     if field_value is not None:
-                        point['elevation_m'] = field_value / 5.0 - 500.0  # Convert to meters
+                        point['elevation_m'] = self.fit_altitude_to_meters(field_value)
                 elif field_name == 'enhanced_altitude':
                     if field_value is not None:
-                        point['elevation_m'] = field_value / 5.0 - 500.0  # Convert to meters
+                        point['elevation_m'] = self.fit_altitude_to_meters(field_value)
                 elif field_name == 'speed':
                     if field_value is not None:
-                        point['speed_kmh'] = field_value * 3.6  # Convert m/s to km/h
+                        point['speed_kmh'] = self.meters_per_second_to_kmh(field_value)
                 elif field_name == 'enhanced_speed':
                     if field_value is not None:
-                        point['speed_kmh'] = field_value * 3.6  # Convert m/s to km/h
+                        point['speed_kmh'] = self.meters_per_second_to_kmh(field_value)
                 elif field_name == 'heart_rate':
                     if field_value is not None:
                         point['heart_rate'] = field_value
@@ -281,7 +286,7 @@ class FitFileParser:
                         point['temperature_c'] = field_value
                 elif field_name == 'distance':
                     if field_value is not None:
-                        distance = field_value / 100000.0  # Convert to km
+                        distance = self.fit_distance_to_km(field_value)
                         point['distance_km'] = distance
             
             # Only add points with valid GPS coordinates
@@ -294,7 +299,6 @@ class FitFileParser:
         logger.info(f"Extracted {len(self.gps_points)} valid GPS points")
     
     def _parse_lap_data(self):
-        """Parse lap/segment data."""
         laps = []
         
         for record in self.fitfile.get_messages('lap'):
@@ -312,10 +316,10 @@ class FitFileParser:
                         lap['duration_seconds'] = int(field.value)
                 elif field.name == 'total_distance':
                     if field.value:
-                        lap['distance_km'] = field.value / 100000  # Convert to km
+                        lap['distance_km'] = self.fit_distance_to_km(field.value)
                 elif field.name == 'avg_speed':
                     if field.value:
-                        lap['avg_speed_kmh'] = field.value * 3.6  # Convert m/s to km/h
+                        lap['avg_speed_kmh'] = self.meters_per_second_to_kmh(field.value)
                 elif field.name == 'avg_heart_rate':
                     if field.value:
                         lap['avg_heart_rate'] = field.value
@@ -327,7 +331,6 @@ class FitFileParser:
             self.workout_data['laps'] = laps
     
     def _calculate_derived_metrics(self):
-        """Calculate additional metrics from GPS data."""
         if not self.gps_points:
             return
         
@@ -368,7 +371,6 @@ class FitFileParser:
             }
     
     def _convert_timestamp(self, fit_timestamp) -> str:
-        """Convert FIT timestamp to ISO format string."""
         try:
             # FIT timestamps are seconds since UTC 00:00 Dec 31 1989
             fit_epoch = datetime(1989, 12, 31, tzinfo=timezone.utc)
@@ -379,11 +381,10 @@ class FitFileParser:
             return datetime.now(timezone.utc).isoformat()
     
     def _is_valid_gps_coordinate(self, lat: float, lon: float) -> bool:
-        """Validate GPS coordinates."""
         return (
-            -90 <= lat <= 90 and 
+            -90 <= lat <= 90 and
             -180 <= lon <= 180 and
-            not (lat == 0 and lon == 0)  # Exclude null island
+            not (lat == 0 and lon == 0)
         )
     
     def get_workout_summary(self) -> Dict[str, Any]:
