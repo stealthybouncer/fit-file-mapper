@@ -7,7 +7,7 @@ name = "fit-file-mapper"
 version = "0.1.0"
 description = "A Python application for mapping FIT file GPS data on USGS maps with advanced visualization capabilities"
 readme = "readme.md"
-requires-python = ">=3.11"
+requires-python = ">=3.13"
 license = {text = "MIT"}
 authors = [
     {name = "Francis Rodrigues", email = "nocontact@example.com"},
@@ -28,8 +28,7 @@ classifiers = [
     "License :: OSI Approved :: MIT License",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: GIS",
     "Topic :: Scientific/Engineering :: Visualization",
 ]
@@ -132,7 +131,7 @@ packages = ["src", "shared", "services"]
 
 [tool.black]
 line-length = 100
-target-version = ['py311']
+target-version = ['py313']
 include = '\.pyi?$'
 extend-exclude = '''
 /(
@@ -149,7 +148,7 @@ extend-exclude = '''
 '''
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py313"
 line-length = 100
 select = [
     "E",  # pycodestyle errors
@@ -170,7 +169,7 @@ ignore = [
 "__init__.py" = ["F401"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.13"
 check_untyped_defs = true
 disallow_any_generics = true
 disallow_incomplete_defs = true

@@ -1,8 +1,7 @@
-# Minimal Map Service Requirements (optimized)
-fastapi==0.104.1
-uvicorn[standard]==0.24.0
-aiohttp==3.8.6
-pillow==10.1.0
-numpy==1.25.2
-pandas==2.1.3
-duckdb==0.9.1
+fastapi==0.115.0
+uvicorn[standard]==0.32.0
+aiohttp==3.11.2
+pillow==11.0.0
+numpy==2.1.3
+pandas==2.2.3
+duckdb==1.1.3
